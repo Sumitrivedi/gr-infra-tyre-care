@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GR INFRA TYRE CARE</title>
+<meta name="theme-color" content="#0b3d91">
+<style>
+:root{--blue:#0b3d91;--blue2:#1565c0;--light:#e8f0fe;--ink:#14213d;--red:#c62828;--amber:#b26a00;--green:#1b7a3a;--line:#c9d6ee}
+*{box-sizing:border-box}
+body{margin:0;font:17px/1.45 system-ui,Segoe UI,Roboto,"Noto Sans Devanagari",sans-serif;color:var(--ink);background:#f6f9ff}
+header{background:var(--blue);color:#fff;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+header h1{margin:0;font-size:20px;letter-spacing:.5px}header small{display:block;opacity:.85;font-size:13px}
+header .sp{flex:1}
+button,select,input,textarea{font:inherit}
+.btn{background:var(--blue2);color:#fff;border:0;border-radius:10px;padding:12px 16px;min-height:48px;cursor:pointer;font-weight:600}
+.btn.alt{background:#fff;color:var(--blue);border:2px solid var(--blue)}.btn.red{background:var(--red)}.btn.sm{min-height:36px;padding:6px 10px}
+.home{background:#fff;color:var(--blue)}
+nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;padding:14px;max-width:1100px;margin:auto}
+nav button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:16px 8px;border:2px solid var(--line);background:#fff;border-radius:14px;color:var(--blue);font-weight:700;cursor:pointer;min-height:92px}
+nav button span{font-size:30px}
+main{max-width:1100px;margin:auto;padding:0 14px 60px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+label{display:block;font-weight:600;margin:10px 0 4px}
+input,select,textarea{width:100%;padding:12px;border:2px solid var(--line);border-radius:10px;background:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}.chip{padding:10px 14px;border-radius:999px;border:2px solid var(--blue2);background:#fff;color:var(--blue);font-weight:600;cursor:pointer}
+.chip.on{background:var(--blue2);color:#fff}
+.tag{display:inline-block;background:var(--light);color:var(--blue);border-radius:6px;padding:2px 8px;font-size:13px;font-weight:700;margin-right:6px}
+.tag.red{background:#fde8e8;color:var(--red)}.tag.amber{background:#fff1d6;color:var(--amber)}.tag.green{background:#e3f6e8;color:var(--green)}
+.banner{padding:12px;border-radius:10px;margin:10px 0;font-weight:600}
+.banner.warn{background:#fff1d6;color:#6b4200;border:2px solid #f0b34a}.banner.crit{background:#fde8e8;color:#8e1b1b;border:2px solid var(--red)}
+.banner.info{background:var(--light);color:var(--blue);border:2px solid var(--line)}.banner.ok{background:#e3f6e8;color:#14532d;border:2px solid #7bc58f}
+dl{margin:8px 0}dt{font-weight:700;color:var(--blue);margin-top:8px}dd{margin:0}
+table{border-collapse:collapse;width:100%;font-size:15px}th,td{border-bottom:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}th{background:var(--light)}
+.scroll{overflow-x:auto}.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.kpi div{background:var(--light);border-radius:12px;padding:12px}.kpi b{font-size:24px;display:block;color:var(--blue)}.kpi small{color:#445}
+.missing{color:var(--amber);font-size:14px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:#14532d;color:#fff;padding:14px 20px;border-radius:12px;display:none;z-index:9;max-width:90%}
+#toast.err{background:var(--red)}
+details summary{cursor:pointer;font-weight:700;color:var(--blue)}
+@media(max-width:600px){header h1{font-size:17px}}
+</style>
+</head>
+<body>
+<header>
+  <button class="btn home" id="homeBtn" aria-label="Home">🏠 <span data-i="home">Home</span></button>
+  <div><h1>GR INFRA TYRE CARE</h1><small>Identify • Inspect • Correct • Improve</small></div>
+  <div class="sp"></div>
+  <button class="btn alt sm" id="langBtn" style="background:#fff">हिंदी</button>
+  <span id="whoami"></span>
+</header>
+<div id="modeBanner"></div>
+<div id="app"></div>
+<div id="toast" role="status"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="calc.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
