@@ -70,7 +70,7 @@ const canWrite = (what) => ({ inspect: ["helper_driver", "inspector", "site_engi
 function home() {
   const ok = ROLE_VIEWS[ME.role];
   $("#app").innerHTML = `<nav>${NAV.filter((n) => ok.includes(n[0])).map((n) => `<button data-go="${n[0]}"><span>${n[1]}</span>${esc(t(n[2], n[3]))}</button>`).join("")}</nav>
-  <main><div class="banner info">ITTAC defect text is shown as published (First Edition, May 2014). It is a reference guide, not a safety clearance. For final determination of a failure, consult the tyre manufacturer.</div></main>`;
+  <main><p><a class="btn" href="tyre-guide.html" style="display:inline-block;text-decoration:none">🤖 Tyre Care Assistant &amp; Project Stages</a></p><div class="banner info">ITTAC defect text is shown as published (First Edition, May 2014). It is a reference guide, not a safety clearance. For final determination of a failure, consult the tyre manufacturer.</div></main>`;
   document.querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => go(b.dataset.go)));
 }
 function go(v) { $("#app").innerHTML = `<main><p>Loading…</p></main>`; VIEWS[v]().catch((e) => { $("#app").innerHTML = `<main><div class="banner crit">Could not load: ${esc(e.message)}</div></main>`; }); window.scrollTo(0, 0); }
@@ -127,39 +127,89 @@ document.addEventListener("input", (e) => { if (e.target.id === "mp") localStora
 /* ---------- 2. inspection ---------- */
 const POSITIONS = ["Front Left", "Front Right", "Rear Left Outer", "Rear Left Inner", "Rear Right Outer", "Rear Right Inner", "Spare", "Other"];
 async function sitesList() { return LIVE ? (await sb.from("sites").select("id,name")).data || [] : [{ id: "S1", name: "Demo Site A" }, { id: "S2", name: "Demo Site B" }]; }
+/* project stage helpers (shared knowledge base: knowledge.js) */
+const KBX = window.KB;
+const LAST_KEY = "grtc_last";
+const lastUsed = () => { try { return JSON.parse(localStorage.getItem(LAST_KEY) || "{}"); } catch (e) { return {}; } };
+function stagePanel(i) {
+  if (i === "" || i === undefined || !KBX.STAGES[i]) return `<div class="banner info">Choose a project type and stage to see how the stage affects tyre wear.</div>`;
+  const s = KBX.STAGES[i], c = KBX.COL[s.badge];
+  return `<div class="card" style="border-left:8px solid ${c};margin:8px 0"><span class="tag" style="background:${c};color:#fff">${esc(s.badge)}</span> <b>${s.score}/10</b> · ${esc(s.label)}
+   <div style="height:10px;background:#e3eaf7;border-radius:99px;margin:6px 0;overflow:hidden"><i style="display:block;height:100%;width:${s.score * 10}%;background:${c}"></i></div>
+   <dl><dt>Terrain &amp; surface</dt><dd>${esc(s.terrain)}</dd><dt>Dominant failure mode</dt><dd>${esc(s.fail)}</dd><dt>Suggested inspection rhythm</dt><dd>${esc(KBX.FREQ[s.badge])} <small>(indicative proposal)</small></dd>
+   <dt>What to do</dt><dd>${esc(s.doit)}</dd><dt>What to avoid</dt><dd>${esc(s.avoid)}</dd></dl>
+   <small class="missing">Indicative GR Infra working scale, not ITTAC data.</small></div>`;
+}
+function aiAdvice(stageI, probKey, equip) {
+  const s = KBX.STAGES[stageI], p = KBX.PROBLEMS[probKey], match = p.kw.test(s.fail) || p.kw.test(s.terrain);
+  return `<div class="card" style="margin:8px 0"><b>${esc(p.label)}</b> at <b>${esc(s.stage)}</b>${equip ? " · " + esc(equip) : ""}<br>
+   <span class="tag" style="background:${KBX.COL[s.badge]};color:#fff">${esc(s.badge)} stage risk</span>
+   <p>${match ? "This matches the dominant failure mode for this stage, so expect it to recur." : "This is not the dominant failure mode for this stage, so look for a local cause as well."}</p>
+   <b>Care actions</b><ul>${p.care.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+   <b>Inspection frequency</b><p>${esc(KBX.FREQ[s.badge])} <small>(indicative proposal)</small></p>
+   <b>Specification points</b><ul>${p.spec.map((x) => `<li>${esc(x)}</li>`).join("")}<li>Confirm the final tyre choice with your tyre manufacturer.</li></ul>
+   <div class="banner crit">⚠ ${esc(p.safety)} Never assume a damaged tyre is safe to keep using.</div>
+   <small>ITTAC reference: ${p.ref.length ? p.ref.map((r) => esc(r[0]) + " (manual p." + r[1] + ")").join(", ") : "none for this item"}. Advisory only; it does not replace inspection by a competent person.</small></div>`;
+}
+
 async function inspect() {
   if (!canWrite("inspect")) return ($("#app").innerHTML = `<main><div class="banner warn">Your role cannot create inspections.</div></main>`);
-  const sites = await sitesList(); const now = new Date(); const local = new Date(now - now.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
-  $("#app").innerHTML = `<main><h2>📝 ${t("inspect", "Tyre Inspection")}</h2><form id="f" class="card" novalidate>
-  <div class="grid">
-   <div><label>Project</label><input name="project" placeholder="e.g. project name"></div>
-   <div><label>Site *</label><select name="site_id">${sites.map((s) => `<option value="${esc(s.id)}" ${s.id === ME.site_id ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div>
+  const sites = await sitesList(), L = lastUsed(); const now = new Date(); const local = new Date(now - now.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+  const EQ = ["Dumper / Tipper", "Truck / Trailer", "Transit Mixer", "Loader / Excavator", "Bus / Light vehicle", "Other"];
+  const sel = (n, arr, v) => `<select name="${n}">${arr.map((o) => `<option ${o === v ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+  $("#app").innerHTML = `<main><h2>📝 ${t("inspect", "Tyre Inspection")}</h2><form id="f" novalidate>
+  <fieldset class="card sect"><legend>1 · Where &amp; what</legend><div class="grid">
+   <div><label>Project</label><input name="project" placeholder="e.g. project name" value="${esc(L.project || "")}"></div>
+   <div><label>Site *</label><select name="site_id">${sites.map((s) => `<option value="${esc(s.id)}" ${s.id === (L.site_id || ME.site_id) ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div>
+   <div><label>Project type</label><select name="project_type"><option value="">— choose —</option>${KBX.SECTORS.map((s) => `<option value="${s[0]}" ${s[0] === L.project_type ? "selected" : ""}>${esc(s[2] + " " + s[1])}</option>`).join("")}</select></div>
+   <div><label>Project stage</label><select name="project_stage"></select></div></div>
+   <div id="stageBox"></div></fieldset>
+  <fieldset class="card sect"><legend>2 · Vehicle &amp; tyre</legend><div class="grid">
    <div><label>Vehicle number *</label><input name="vehicle_no" autocapitalize="characters"></div>
-   <div><label>Equipment type</label><select name="equipment_type"><option>Dumper / Tipper</option><option>Truck / Trailer</option><option>Transit Mixer</option><option>Loader / Excavator</option><option>Bus / Light vehicle</option><option>Other</option></select></div>
+   <div><label>Equipment type</label>${sel("equipment_type", EQ, L.equipment_type)}</div>
    <div><label>Tyre serial number (if available)</label><input name="tyre_serial"></div>
-   <div><label>Tyre position *</label><select name="tyre_position">${POSITIONS.map((p) => `<option>${p}</option>`).join("")}</select></div>
-   <div><label>Axle</label><select name="axle"><option>Front</option><option>Rear 1</option><option>Rear 2</option><option>Rear 3</option><option>Trailer</option><option>Spare</option></select></div>
-   <div><label>Date & time *</label><input type="datetime-local" name="inspected_at" value="${local}"></div>
+   <div><label>Tyre position *</label>${sel("tyre_position", POSITIONS)}</div>
+   <div><label>Axle</label>${sel("axle", ["Front", "Rear 1", "Rear 2", "Rear 3", "Trailer", "Spare"])}</div>
+   <div><label>Date &amp; time *</label><input type="datetime-local" name="inspected_at" value="${local}"></div></div></fieldset>
+  <fieldset class="card sect"><legend>3 · Readings</legend><div class="grid">
    <div><label>Odometer (km)</label><input type="number" min="0" step="any" name="odometer_km" inputmode="decimal"></div>
    <div><label>Operating hours</label><input type="number" min="0" step="any" name="operating_hours" inputmode="decimal"></div>
    <div><label>Tread depth</label><div style="display:flex;gap:6px"><input type="number" min="0" step="any" name="tread_depth" inputmode="decimal"><select name="tread_unit" style="width:90px"><option>mm</option><option>32nd in</option></select></div></div>
-   <div><label>Inflation pressure</label><div style="display:flex;gap:6px"><input type="number" min="0" step="any" name="pressure" inputmode="decimal"><select name="pressure_unit" style="width:90px"><option>psi</option><option>bar</option><option>kPa</option></select></div></div>
+   <div><label>Inflation pressure</label><div style="display:flex;gap:6px"><input type="number" min="0" step="any" name="pressure" inputmode="decimal"><select name="pressure_unit" style="width:90px"><option>psi</option><option>bar</option><option>kPa</option></select></div></div></div></fieldset>
+  <fieldset class="card sect"><legend>4 · Defect <button type="button" class="btn sm alt" id="aiBtn">🤖 Ask AI</button></legend>
+   <div id="aiBox"></div><div class="grid">
    <div><label>Defect area</label><select name="defect_area"><option value="">— no defect seen —</option>${AREAS.map((a) => `<option>${a}</option>`).join("")}</select></div>
-   <div><label>Defect (ITTAC code)</label><select name="defect_code"><option value="">—</option></select></div>
-  </div>
-  <div id="critBox"></div>
-  <label>Photographs (JPG/PNG/WEBP, max 5 MB each)</label><input type="file" name="photos" accept="image/*" capture="environment" multiple>
-  <label>Notes</label><textarea name="notes" rows="2"></textarea>
-  <fieldset class="card"><legend><b>Corrective action (if a defect was found)</b></legend><div class="grid">
+   <div><label>Defect (ITTAC code)</label><select name="defect_code"><option value="">—</option></select></div></div>
+   <div id="critBox"></div>
+   <label>Photographs (JPG/PNG/WEBP, max 5 MB each)</label><input type="file" name="photos" accept="image/*" capture="environment" multiple>
+   <label>Notes</label><textarea name="notes" rows="2"></textarea></fieldset>
+  <fieldset class="card sect"><legend>5 · Corrective action (if a defect was found)</legend><div class="grid">
    <div><label>Priority</label><select name="priority"><option value="">—</option><option>critical</option><option>high</option><option selected>medium</option><option>low</option></select></div>
    <div><label>Action owner (name)</label><input name="owner_name"></div>
    <div><label>Due date</label><input type="date" name="due_date"></div></div>
    <label>Corrective action</label><textarea name="corrective_action" rows="2"></textarea></fieldset>
-  <p><button class="btn" type="submit">✔ ${t("save", "Save inspection")}</button> <button class="btn alt" type="button" id="draftBtn">${t("draft", "Save draft")}</button></p></form></main>`;
-  const f = $("#f"), area = f.defect_area, code = f.defect_code;
-  area.onchange = () => { code.innerHTML = `<option value="">—</option>` + DEFECTS.filter((d) => d.area === area.value).map((d) => `<option value="${esc(d.code)}">${esc(d.code)} — ${esc(d.name)}</option>`).join(""); crit(); };
+  <div class="stickybar"><button class="btn" type="submit">✔ ${t("save", "Save inspection")}</button> <button class="btn alt" type="button" id="draftBtn">${t("draft", "Save draft")}</button></div></form></main>`;
+  const f = $("#f"), area = f.defect_area, code = f.defect_code, pt = f.project_type, ps = f.project_stage;
+  const fillStages = (keep) => { const opts = KBX.STAGES.map((s, i) => [i, s]).filter((x) => x[1].sec === pt.value);
+    ps.innerHTML = `<option value="">— choose —</option>` + opts.map(([i, s]) => `<option value="${i}" ${String(i) === String(keep) ? "selected" : ""}>${esc(s.stage)}</option>`).join(""); ps.disabled = !pt.value;
+    if (opts.length === 1 && (keep === "" || keep === undefined)) ps.value = String(opts[0][0]); showStage(); };
+  const showStage = () => { $("#stageBox").innerHTML = stagePanel(ps.value); };
+  pt.onchange = () => fillStages(""); ps.onchange = showStage;
+  fillStages(L.project_stage !== undefined ? L.project_stage : "");
+  const setDefectOptions = () => { code.innerHTML = `<option value="">—</option>` + DEFECTS.filter((d) => d.area === area.value).map((d) => `<option value="${esc(d.code)}">${esc(d.code)} — ${esc(d.name)}</option>`).join(""); };
   const crit = () => { const d = byCode(code.value); $("#critBox").innerHTML = d && isCritical(d) ? `<div class="banner crit">⚠ ${esc(t("critical", "SAFETY-CRITICAL SCREENING: ITTAC action is “" + d.tyre_action + "”. Keep the tyre out of service until a competent person has assessed it. This app never declares a damaged tyre safe."))}</div>` : ""; };
-  code.onchange = crit;
+  area.onchange = () => { setDefectOptions(); crit(); }; code.onchange = crit;
+  // Ask AI helper (rule-based, runs in the browser; no data leaves the device)
+  $("#aiBtn").onclick = () => {
+    const box = $("#aiBox");
+    if (ps.value === "") { box.innerHTML = `<div class="banner warn">Choose a project type and stage in section 1 first, so the advice fits your stage.</div>`; box.scrollIntoView({ block: "center" }); return; }
+    box.innerHTML = `<div class="banner info"><b>🤖 What do you see?</b> Tap the main problem.<div class="chips" style="margin-top:8px">${Object.entries(KBX.PROBLEMS).map(([k, v]) => `<button type="button" class="chip" data-p="${k}">${esc(v.label)}</button>`).join("")}</div><small>Advisory only. Not a replacement for inspection by a competent person.</small></div><div id="aiOut"></div>`;
+    box.querySelectorAll("[data-p]").forEach((b) => (b.onclick = () => {
+      box.querySelectorAll("[data-p]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+      const k = b.dataset.p, p = KBX.PROBLEMS[k]; $("#aiOut").innerHTML = aiAdvice(ps.value, k, f.equipment_type.value) + (p.ref.length ? `<p><button type="button" class="btn sm" id="useDef">Use ${esc(p.ref[0][0])} in this inspection</button></p>` : "");
+      const u = $("#useDef"); if (u) u.onclick = () => { const d = byCode(p.ref[0][0]); if (!d) return; area.value = d.area; setDefectOptions(); code.value = d.code; crit(); toast("Defect set to " + d.code + ". Check it against the photo in the Defect Reference."); };
+    }));
+  };
   const save = async (status) => {
     const v = Object.fromEntries(new FormData(f)); const errs = [];
     if (!v.vehicle_no.trim()) errs.push("Vehicle number is required");
@@ -173,12 +223,21 @@ async function inspect() {
     try {
       const files = [...f.photos.files]; const paths = []; for (const fl of files) paths.push(await store.uploadPhoto(fl, v.site_id));
       const d = byCode(v.defect_code); const num = (x) => (x === "" ? null : Number(x));
+      const sg = v.project_stage !== "" && KBX.STAGES[v.project_stage] ? KBX.STAGES[v.project_stage] : null;
       const row = { status, project: v.project, site_id: v.site_id, vehicle_no: v.vehicle_no.trim().toUpperCase(), equipment_type: v.equipment_type, tyre_serial: v.tyre_serial, tyre_position: v.tyre_position, axle: v.axle,
         inspected_at: new Date(v.inspected_at || Date.now()).toISOString(), odometer_km: num(v.odometer_km), operating_hours: num(v.operating_hours), tread_depth: num(v.tread_depth), tread_unit: v.tread_unit, pressure: num(v.pressure), pressure_unit: v.pressure_unit,
-        defect_area: v.defect_area || null, defect_code: v.defect_code || null, defect_name: d ? d.name : null, safety_critical: !!(d && isCritical(d)), notes: v.notes, photo_paths: paths };
-      if (!LIVE) row.inspector_id = ME.id; if (!LIVE) row.inspector_name = ME.name;
-      const ins = await store.insert("inspections", row);
-      if (status === "submitted" && d && canWrite("actions") ) {
+        defect_area: v.defect_area || null, defect_code: v.defect_code || null, defect_name: d ? d.name : null, safety_critical: !!(d && isCritical(d)), notes: v.notes, photo_paths: paths,
+        project_type: sg ? (KBX.SECTORS.find((x) => x[0] === sg.sec) || [])[1] || null : null, project_stage: sg ? sg.stage : null };
+      if (!LIVE) { row.inspector_id = ME.id; row.inspector_name = ME.name; }
+      let ins;
+      try { ins = await store.insert("inspections", row); }
+      catch (e) { // database not yet upgraded with the project-stage columns: save anyway, keep the stage in the notes
+        if (!/project_type|project_stage|schema cache/i.test(e.message || "")) throw e;
+        const r2 = { ...row }; delete r2.project_type; delete r2.project_stage; r2.notes = ((row.notes || "") + (sg ? ` [Project: ${row.project_type} / ${row.project_stage}]` : "")).trim();
+        ins = await store.insert("inspections", r2); toast("Saved, but ask your administrator to run the project-stage database update (migration_001).", false);
+      }
+      localStorage.setItem(LAST_KEY, JSON.stringify({ project: v.project, site_id: v.site_id, project_type: v.project_type, project_stage: v.project_stage, equipment_type: v.equipment_type }));
+      if (status === "submitted" && d && canWrite("actions")) {
         await store.insert("actions", { inspection_id: ins.id, site_id: v.site_id, priority: v.priority || "medium", corrective_action: v.corrective_action, owner_name: v.owner_name, due_date: v.due_date });
       } else if (status === "submitted" && d) { toast("Inspection saved. Your role cannot create actions — a Site Engineer will assign one.", false); return home(); }
       toast(`${t("saved", "Saved ✔")} (${status === "draft" ? "draft" : "inspection"} ${ins.id.slice(0, 8)})`); home();
@@ -254,6 +313,8 @@ async function dash() {
     const lives = T.map((x) => Calc.achievedLife(x).km).filter((v) => v !== null); const avgLife = lives.length ? lives.reduce((a, b) => a + b, 0) / lives.length : null;
     const bySite = sites.map((s) => { const ts = T.filter((x) => x.site_id === s.id); const known = ts.map((x) => Calc.tyreTotalCost(x).value).filter((v) => v !== null);
       return `<tr><td>${esc(s.name)}</td><td>${I.filter((i) => i.site_id === s.id).length}</td><td>${ts.length}</td><td>${fmt(known.reduce((a, b) => a + b, 0), 0)}</td><td class="missing">${ts.length - known.length ? ts.length - known.length + " tyre(s) without purchase cost" : ""}</td></tr>`; }).join("");
+    const sg = {}; I.forEach((i) => { const k = i.project_stage || (/\[Project: ([^\]]+)\]/.exec(i.notes || "") || [])[1]; if (!k) return; (sg[k] = sg[k] || [0, 0])[0]++; if (i.defect_code) sg[k][1]++; });
+    const stageRows = Object.entries(sg).sort((a, b) => b[1][0] - a[1][0]).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v[0]}</td><td>${v[1]}</td></tr>`).join("");
     $("#dres").innerHTML = `<div class="card"><h3>Actual measured performance</h3><div class="kpi">
      <div><b>${I.length}</b><small>Inspections in selection</small></div><div><b>${defects.length}</b><small>Inspections with a defect</small></div>
      <div><b>${comp.value === null ? "—" : fmt(comp.value * 100, 0) + "%"}</b><small>Vehicle inspection compliance${comp.value === null ? " (needs vehicle register)" : ""}</small></div>
@@ -264,6 +325,7 @@ async function dash() {
      <div><b>${A.length ? fmt((closed / A.length) * 100, 0) + "%" : "—"}</b><small>Actions closed (${verified} verified, ${over} overdue)</small></div></div>
      <p class="missing">Tyres excluded from cost/life figures for missing data: ${skipped}. Dashes mean data is missing — nothing is estimated.</p></div>
      <div class="card scroll"><h3>Site-wise</h3><table><tr><th>Site</th><th>Inspections</th><th>Tyres</th><th>Tyre expenditure ₹ (known)</th><th>Data gaps</th></tr>${bySite}</table></div>
+     <div class="card scroll"><h3>Inspections by project stage</h3><table><tr><th>Project stage</th><th>Inspections</th><th>With a defect</th></tr>${stageRows || '<tr><td colspan="3">No inspections with a project stage yet.</td></tr>'}</table><p class="missing">Counts only, from recorded inspections.</p></div>
      <div class="card"><h3>Proposed targets (NOT approved, NOT measured)</h3><p>No KPI thresholds are built in. Targets such as inspection frequency, minimum tread depth or cost/km goals must be proposed and approved by GR Infra P&E management before being entered here. Until then this section is intentionally empty.</p></div>`;
   };
   $("#app").innerHTML = `<main><h2>📊 ${t("dash", "Management Dashboard")}</h2><div class="card grid">

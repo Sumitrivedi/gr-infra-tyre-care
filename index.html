@@ -5,8 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GR INFRA TYRE CARE</title>
 <meta name="theme-color" content="#0b3d91">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tyre Care">
 <style>
-:root{--blue:#0b3d91;--blue2:#1565c0;--light:#e8f0fe;--ink:#14213d;--red:#c62828;--amber:#b26a00;--green:#1b7a3a;--line:#c9d6ee}
+:root{--low:#1b7a3a;--mod:#a67c00;--high:#d9620b;--peak:#c62828;--crit:#6a1b9a;--blue:#0b3d91;--blue2:#1565c0;--light:#e8f0fe;--ink:#14213d;--red:#c62828;--amber:#b26a00;--green:#1b7a3a;--line:#c9d6ee}
 *{box-sizing:border-box}
 body{margin:0;font:17px/1.45 system-ui,Segoe UI,Roboto,"Noto Sans Devanagari",sans-serif;color:var(--ink);background:#f6f9ff}
 header{background:var(--blue);color:#fff;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:5}
@@ -39,6 +44,9 @@ table{border-collapse:collapse;width:100%;font-size:15px}th,td{border-bottom:1px
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:#14532d;color:#fff;padding:14px 20px;border-radius:12px;display:none;z-index:9;max-width:90%}
 #toast.err{background:var(--red)}
 details summary{cursor:pointer;font-weight:700;color:var(--blue)}
+fieldset.sect{margin:12px 0;border:1px solid var(--line)}fieldset.sect legend{font-weight:800;color:var(--blue);padding:0 8px;display:flex;gap:10px;align-items:center}
+.stickybar{position:sticky;bottom:0;background:rgba(246,249,255,.96);padding:10px 0;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);z-index:4}
+.chips{display:flex;flex-wrap:wrap;gap:8px}.chip[aria-pressed=true]{background:var(--blue2);color:#fff}
 @media(max-width:600px){header h1{font-size:17px}}
 </style>
 </head>
@@ -56,6 +64,8 @@ details summary{cursor:pointer;font-weight:700;color:var(--blue)}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script src="calc.js"></script>
+<script src="knowledge.js"></script>
 <script src="app.js"></script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}</script>
 </body>
 </html>
